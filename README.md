@@ -4,7 +4,7 @@ Open-source driver + MCP Server for the **Memobird GT1** thermal printer — no 
 
 Connects directly to the device via classic Bluetooth SPP, letting Claude Code, Cursor, or any MCP client print receipts, to-do lists, images, and more. Also includes a standalone GUI tool for quick image printing.
 
-> Protocol reverse-engineered from the official Android SDK (`cn.memobird.gtx`). See [Protocol Details](#protocol-details) below.
+> Forked from [5uX1a0ma0/memobird-gt1-mcp](https://github.com/5uX1a0ma0/memobird-gt1-mcp). Protocol reverse-engineered from the official Android SDK (`cn.memobird.gtx`). See [Protocol Details](#protocol-details) below.
 
 ---
 
