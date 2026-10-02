@@ -1,136 +1,156 @@
-# Memobird GT1 MCP Server 🖨️
+# Memobird GT1 Tools 🖨️
 
-无需官方 App、无需云服务的**咕咕机 GT1 热敏打印机**开源驱动 + MCP Server。
+Open-source driver + MCP Server for the **Memobird GT1** thermal printer — no official app, no cloud, no account required.
 
-通过经典蓝牙 SPP 协议直连设备，让你的 Claude / Cursor / 任何 MCP 客户端直接指挥打印机输出小票、待办清单、表情包图片等。
+Connects directly to the device via classic Bluetooth SPP, letting Claude Code, Cursor, or any MCP client print receipts, to-do lists, images, and more. Also includes a standalone GUI tool for quick image printing.
 
-> 本项目完全基于对官方 Android SDK 的逆向分析，协议逆向细节见下文 [协议说明](#协议说明)。
+> Protocol reverse-engineered from the official Android SDK (`cn.memobird.gtx`). See [Protocol Details](#protocol-details) below.
 
 ---
 
-## ✨ 特性
+## ✨ Features
 
-- 🚫 **零官方依赖**：不装官方 App、不注册账号、不联网，纯本地蓝牙直连。
-- 🔌 **标准 MCP 工具**：`get_device_status` / `print_text` / `print_image`，任何 MCP 客户端可用。
-- 🖼️ **任意图片打印**：本地文件或网络 URL 均可，自动等比缩放 + Floyd–Steinberg 误差扩散抖动，输出 384 点阵单色图。
-- 🧩 **独立可用**：不接 MCP 也能当作普通 Python 库直接调用。
-- 🔧 **单文件驱动**：`memobird_driver.py` 零第三方蓝牙依赖，仅需 Pillow。
+- 🚫 **Zero official dependencies** — no app, no account, no internet. Pure local Bluetooth.
+- 🔌 **Standard MCP tools** — `get_device_status` / `print_text` / `print_image`, usable from any MCP client.
+- 🖼️ **Flexible image printing** — local path or HTTP/HTTPS URL, auto-scaled to 384 dots with Floyd–Steinberg dithering.
+- 🖥️ **GUI app** — `print_gui.py` for drag-and-click image printing with live preview.
+- 🧩 **Standalone library** — use `memobird_driver.py` directly in your own Python code.
+- 🔧 **Single-file driver** — no third-party Bluetooth dependencies; only Pillow required.
 
-## 🖥️ 系统要求
+## 🖥️ System Requirements
 
-| 项目 | 要求 |
-|------|------|
-| 操作系统 | **Linux**（驱动使用 `socket.AF_BLUETOOTH`，需要内核 RFCOMM 支持） |
-| 蓝牙 | 经典蓝牙适配器（BlueZ 5.x），已配对/可发现目标设备 |
+| | |
+|---|---|
+| OS | **Linux** — uses `socket.AF_BLUETOOTH` (kernel RFCOMM support required) |
+| Bluetooth | Classic Bluetooth adapter (BlueZ 5.x), device already paired |
 | Python | 3.8+ |
-| 硬件 | 咕咕机 GT1（其他 Memobird 型号未测试，协议可能兼容） |
+| Hardware | Memobird GT1 (other models untested, protocol may be compatible) |
 
-> ⚠️ 当前仅支持 Linux。Windows/macOS 的蓝牙 RFCOMM 接口与 Linux 不同，暂未适配。
+> ⚠️ Linux only. Windows/macOS use a different RFCOMM interface and are not currently supported.
 
-## 📦 安装
+## 📦 Installation
 
 ```bash
-git clone https://github.com/<your-account>/memobird-gt1-mcp.git
-cd memobird-gt1-mcp
-pip install -r requirements.txt
+git clone https://github.com/lebenf/memobird-gt1-tools.git
+cd memobird-gt1-tools
+python3 -m venv .venv
+source .venv/bin/activate
+pip install "mcp<2" Pillow PyQt6
 ```
 
-## 🚀 快速开始（独立使用）
+> **Note:** `mcp>=2` renames `FastMCP` and breaks the MCP server. Pin `mcp<2`.
+
+## 📡 Finding Your Bluetooth MAC Address
+
+```bash
+bluetoothctl scan on
+# Look for "MEMOBIRD GT1" in the output and note its MAC address
+bluetoothctl scan off
+
+# Or list already-paired devices:
+bluetoothctl devices
+```
+
+## 🚀 Standalone Usage
 
 ```python
 from memobird_driver import MemobirdGT1
 
-# 默认 MAC 为开发者测试设备，请改成你自己的（见下文「获取蓝牙 MAC」）
-printer = MemobirdGT1(mac="00:15:83:41:F8:B2")
+printer = MemobirdGT1(mac="00:15:83:XX:XX:XX")  # replace with your MAC
 
-# 打印文本
+# Print text
 with printer:
-    printer.print_text("你好，咕咕机！\n这是本地直连打印。")
+    printer.print_text("Hello from Python!\nDirect Bluetooth print.")
 
-# 打印图片（本地路径 / PIL 对象 / 二进制均可）
+# Print image (local path, PIL Image, or bytes)
 with printer:
-    printer.print_image("hello.png")
-    printer.print_image("https://example.com/pic.jpg")
+    printer.print_image("photo.png")
+    printer.print_image("https://example.com/image.jpg")
 ```
 
-## 🔗 MCP 集成
+## 🖥️ GUI App
 
-在 MCP 客户端配置中添加（以 Claude Desktop 为例）：
+Launch the graphical image printer:
+
+```bash
+python print_gui.py
+```
+
+- Browse and preview any image file
+- Toggle Floyd–Steinberg dithering (recommended for photos)
+- One-click print; status feedback in real time
+
+## 🔗 MCP Integration
+
+### Claude Code (global, all projects)
+
+Add to `~/.claude.json`:
 
 ```json
 {
   "mcpServers": {
     "memobird-gt1": {
-      "command": "python",
-      "args": ["/absolute/path/to/memobird_mcp.py"],
+      "command": "/path/to/.venv/bin/python",
+      "args": ["/path/to/memobird_mcp.py"],
       "env": {
-        "MEMOBIRD_MAC": "00:15:83:41:F8:B2"
+        "MEMOBIRD_MAC": "00:15:83:XX:XX:XX"
       }
     }
   }
 }
 ```
 
-Cursor 则写入项目根目录 `.cursor/mcp.json`：
+### Claude Desktop / Cursor
 
 ```json
 {
   "mcpServers": {
     "memobird-gt1": {
-      "command": "python",
-      "args": ["/absolute/path/to/memobird_mcp.py"],
-      "env": { "MEMOBIRD_MAC": "00:15:83:41:F8:B2" }
+      "command": "/path/to/.venv/bin/python",
+      "args": ["/path/to/memobird_mcp.py"],
+      "env": { "MEMOBIRD_MAC": "00:15:83:XX:XX:XX" }
     }
   }
 }
 ```
 
-配置后，即可让 AI 直接调用以下工具：
+### Available MCP Tools
 
-| 工具 | 参数 | 说明 |
-|------|------|------|
-| `get_device_status` | `mac`(可选) | 查询连接状态与设备序列号 |
-| `print_text` | `content`, `bold`, `underline`, `mac` | 打印 GBK 编码文本小票 |
-| `print_image` | `image_path_or_url`, `dither`, `mac` | 打印本地/网络图片，自动二值化 |
+| Tool | Parameters | Description |
+|------|------------|-------------|
+| `get_device_status` | `mac` (optional) | Check connection and read serial number |
+| `print_text` | `content`, `bold`, `underline`, `mac` | Print a text receipt |
+| `print_image` | `image_path_or_url`, `dither`, `mac` | Print a local file or HTTP/HTTPS image |
 
-## 📡 获取蓝牙 MAC 地址
+## 📐 Protocol Details
 
-```bash
-bluetoothctl scan on
-# 观察输出，找到设备名 MEMOBIRD GT1 对应的 MAC
-bluetoothctl scan off
-```
+Reverse-engineered from the official Memobird GT1 Android SDK:
 
-也可用 `bluetoothctl devices` 列出已发现设备。
-
-## 📐 协议说明
-
-本项目逆向自咕咕机 GT1 官方 Android SDK（`cn.memobird.gtx`），核心结论：
-
-- **物理层**：经典蓝牙 SPP（RFCOMM），默认 Channel 1。
-- **帧格式**：
+- **Physical layer**: Classic Bluetooth SPP (RFCOMM), channel 1.
+- **Frame format**:
   ```
-  | 0xAA | len(2B, LE) | cmd(1B) | payload(TLV 序列) | checksum(1B) |
+  0xAA | len(2B, LE) | cmd(1B) | payload(TLV sequence) | checksum(1B)
   ```
-  其中 `checksum = (256 - sum(body) & 0xFF) & 0xFF`。
-- **主要指令**：
-  - `cmd 0x01`：握手 / 状态查询，返回序列号与固件信息。
-  - `cmd 0x04`：打印通道，payload 为 TLV 块。
-- **关键 TLV Tag**：
-  - `Tag 11`(2B)：本次任务总包数
-  - `Tag 12`(2B)：当前包序号
-  - `Tag 7`：GBK 编码文本
-  - `Tag 8`：1-bit 单色 BMP 图像分片（每包 1024 字节）
-  - `Tag 13`/`Tag 17`/`Tag 16`：加粗 / 下划线 / 字号
-- **固件保护**：每次打印前需发送 2 次 1024 字节全零预热包。
-- **图像方向坑**：官方 `BMPFile.createBMPArray` 生成的是 **biHeight 为正、像素按 top-down 行序**写入的非标准 BMP，而 PIL 默认输出 bottom-up。驱动在保存前对图像做 `FLIP_TOP_BOTTOM` 以对齐官方格式，否则打印结果会上下颠倒。
-- **分包策略**：采用**连发模式**（发完所有包不等逐包 ACK）。实测「逐包等 ACK」会因每包 3 秒超时把多包任务拖到数十秒，触发固件超时导致不出纸。
+  Checksum: `(256 - sum(body) & 0xFF) & 0xFF`
+- **Commands**:
+  - `cmd 0x01` — Handshake / status query; returns serial number and firmware info.
+  - `cmd 0x04` — Print channel; payload is a sequence of TLV blocks.
+- **Key TLV tags**:
+  - `Tag 11` (2B) — Total packet count for this job
+  - `Tag 12` (2B) — Current packet index
+  - `Tag 7` — GBK-encoded text data
+  - `Tag 8` — 1-bit monochrome BMP image chunk (1024 bytes per packet)
+  - `Tag 13` / `Tag 17` / `Tag 16` — Bold / underline / font size flags
+- **Warmup sequence**: Two 1024-byte zero-padding bursts must be sent before each print job. This is a firmware protection requirement.
+- **Image orientation quirk**: The official `BMPFile.createBMPArray` produces a non-standard BMP with a positive `biHeight` but top-down pixel row order. Standard PIL saves bottom-up. The driver applies `FLIP_TOP_BOTTOM` before saving so the file bytes match what the firmware expects — without this, images print upside-down.
+- **Burst mode**: All packets are sent without waiting for per-packet ACK. Waiting for per-packet ACK causes a ~3-second timeout per packet, dragging multi-packet jobs to tens of seconds and triggering a firmware timeout that results in no paper feed.
+- **Timing**: Image printing requires slightly longer inter-packet delays (≥100 ms) and a longer post-transmission pause (≥1.5 s) compared to the original SDK defaults. The driver in this repo has been tuned to reliable values.
 
-## ⚠️ 已知限制
+## ⚠️ Known Limitations
 
-- 设备长时间无操作会**自动休眠关机**（蓝牙断开报 `Host is down`），需手动按键唤醒后重连。
-- 仅支持 Linux + BlueZ；Windows/macOS 需自行适配 RFCOMM 层。
-- 序列号解析依赖响应报文的固定偏移，不同固件版本可能偏移不同（不影响打印功能）。
+- The printer auto-sleeps after inactivity (Bluetooth disconnects with `Host is down`). Press the physical button to wake it before connecting.
+- Linux + BlueZ only. Windows/macOS require RFCOMM layer adaptation.
+- Serial number parsing relies on fixed response packet offsets; different firmware versions may differ (does not affect printing).
 
 ## 📄 License
 

@@ -81,9 +81,9 @@ class MemobirdGT1:
     def _warmup(self):
         # 官方驱动固件保护预热序列
         self.sock.send(b"\x00" * 1024)
-        time.sleep(0.08)
+        time.sleep(0.15)
         self.sock.send(b"\x00" * 1024)
-        time.sleep(0.08)
+        time.sleep(0.15)
 
     def print_text(self, text: str, bold: bool = False, underline: bool = False, font_size: int = 0) -> bool:
         if not text.endswith("\n"):
@@ -159,7 +159,7 @@ class MemobirdGT1:
         total_pkts = (len(bmp_bytes) + CHUNK_SIZE - 1) // CHUNK_SIZE
         tlv_total = tlv(11, le16(total_pkts))
 
-        self.sock.settimeout(3.0)
+        self.sock.settimeout(5.0)
         for i in range(total_pkts):
             pkt_no = i + 1
             chunk = bmp_bytes[i * CHUNK_SIZE : (i + 1) * CHUNK_SIZE]
@@ -182,11 +182,11 @@ class MemobirdGT1:
             if not sent:
                 raise RuntimeError(f"packet {pkt_no}/{total_pkts} 发送失败")
             # 连发模式: 固件缓冲区足够, 不逐包等 ACK, 避免拖慢任务触发超时
-            time.sleep(0.05)
+            time.sleep(0.10)
 
         # 走纸
         if feed_lines > 0:
-            time.sleep(0.8)
+            time.sleep(1.5)
             feed_txt = "\n" * feed_lines
             feed_payload = tlv(11, le16(1)) + tlv(12, le16(1)) + tlv(13, bytes([0])) + tlv(17, bytes([0])) + tlv(16, bytes([0])) + tlv(7, feed_txt.encode('gbk'))
             self.sock.send(make_frame(cmd=4, payload=feed_payload))
